@@ -20,7 +20,7 @@
 #define COMPATIBILITY
 
 static minetest m;
-static uint max_len = 20, mode = ENFORCING;
+static uint mode = ENFORCING;
 static QByteArray lastreg;
 static QString modpath, lastregwl;
 static std::forward_list<QRegularExpression> whitelist;
@@ -185,12 +185,7 @@ int is_blacklisted(lua_State *L)
 	if (!check_args("is_blacklisted", L, 1, "token"))
 		return 0;
 	QString token = lua_tostring(L, 1);
-	if (token.size() > max_len) {
-		lastreg = "spam";
-		lua_pushboolean(L, true);
-		return 1;
-	}
-
+	
 	bool res = false;
 	for (const QRegularExpression &reg : blacklist) {
 		if (reg.match(token).hasMatch()) {
@@ -301,9 +296,6 @@ out_export:
 		else
 			return {true, "Permissive"};
 	}
-	if (params[0] == "get_max_len") {
-		return {true, QString::number(max_len).toUtf8()};
-	}
 	if (params[0] == "setenforce") {
 		if (params.size() == 2) {
 			if (params[1] == "1" || !params[1].compare("Enforcing", Qt::CaseInsensitive)) {
@@ -323,23 +315,6 @@ out_export:
 		}
 		return {false, "Usage: /filter setenforce [ Enforcing | Permissive | 1 | 0 ]"};
 	}
-	if (params[0] == "set_max_len") {
-		if (params.size() != 2)
-			return {false, "Usage: /filter set_max_len <max_len: number>"};
-		bool ok;
-		uint max_len_changed = params[1].toUInt(&ok);
-		if (!ok)
-			return {false, "Usage: /filter set_max_len <max_len: number>"};
-		if (max_len == max_len_changed) {
-			caller = name;
-			qLog << "Maximum message length was already " << max_len;
-			caller = nullptr;
-			return {false, ""};
-		}
-		max_len = max_len_changed;
-		qLog << "filter: " << name << " set max_len to " << max_len;
-		return {true, "Maximum message length changed"};
-	}
 	if (params[0] == "help") {
 		return {true, R"(The filter works by matching regex patterns from lists with each message to try and find the match.
 If match is found in blacklist, the message is blocked.
@@ -348,9 +323,7 @@ It passes if no match is found in blacklist, or if a match is found in whitelist
 List of possible commands:
 export <list_name>: Export given list to a file in mod folder
 getenforce: Get the current filter mode
-get_max_len: Get currently set maximum message length
 setenforce <mode>: Set new filter mode
-set_max_len <max_len>: Set new maximum message length
 help: Print this help menu
 dump: Dump current blacklist to chat
 dumpwl: Dump current whitelist to chat
@@ -361,7 +334,7 @@ reloadwl: Reload whitelist from file in mod folder
 addwl <regex>: Add regex to whitelist
 rmwl <regex>: Remove regex from whitelist
 add <regex>: Add regex to blacklist
-rm <regex>: Remove regex frmo blacklist)"};
+rm <regex>: Remove regex from blacklist)"};
 	}
 	if (params[0] == "dump") {
 		QString res = "Blacklist contents:\n";
@@ -490,15 +463,8 @@ extern "C" int luaopen_mylibrary(lua_State *L)
 	storage s(L);
 	if (s.contains("mode"))
 		mode = s.get_int("mode");
-	if (s.contains("max_len"))
-		max_len = s.get_int("max_len");
 
 #ifdef COMPATIBILITY
-	if (s.contains("maxLen")) {
-		max_len = s.get_int("maxLen");
-		s.set_string("maxLen", "");
-		s.set_int("max_len", max_len);
-	}
 	if (s.contains("words")) {
 		QByteArray blacklist = s.get_string("words");
 		s.set_string("words", "");
